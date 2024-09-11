@@ -2,75 +2,88 @@ import { useEffect, useState } from 'react'
 import './App.css'
 import axios from 'axios'
 
-interface Pokemon {
+interface PokeData {
+  sprites: {
+    front_default: string;
+  }
   name: string;
-  url: string;
-}
-
-interface PokemonType {
-  slot: number;
-  type: {
-    name: string;
-  };
-}
-
-interface Sprites {
-  front_default: string;
-}
-
-interface PokemonCard {
-  img: HTMLImageElement;
-  name: string;
-  types: PokemonType[];  // PokemonType型の配列
-  sprites: Sprites;      // Sprites型
+    types: {
+    type: {
+      name: string;
+    };
+  }[];
 }
 
 function App() {
-  const [isLoading, setIsLoading] = useState(true);
-  const [, setPokeData] = useState<Pokemon[]>([]); // ポケモンの基本データを格納
-  const [details, setDetails] = useState<PokemonCard[]>([]); // 詳細データを格納
-
+  const [, setGetAllData] = useState([]);
+  const [getNext, setGetNext] = useState<string | null>(null); // 初期値をnullに設定
+  const [, setGetPrev] = useState<string | null>(null); // 初期値をnullに設定
+  const [getDetailData, setGetDetailData] = useState<PokeData[]>([]);
+ 
   useEffect(() => {
-    const getData = async () => {
+    const allPokemonData = async () => {
       try {
-        // まずポケモンのリストを取得
-        const res = await axios.get('https://pokeapi.co/api/v2/pokemon');
-        const allPokeData: Pokemon[] = res.data.results; // 基本データ
-        setPokeData(allPokeData); // pokeDataに基本データをセット
+        const res = await axios.get("https://pokeapi.co/api/v2/pokemon")
+        const allData = res.data.results;
+        setGetAllData(res.data.results);
+        setGetNext(res.data.next);
+        setGetPrev(res.data.previous);
 
-        // 取得したポケモンリストから各ポケモンの詳細を取得
-        const detailPromises = allPokeData.map(async (data) => {
-          const res2 = await axios.get(data.url);
-          return res2.data; // 詳細データを返す
-        });
-
-        // 全ての詳細データが取得されるまで待つ
-        const allDetails = await Promise.all(detailPromises);
-        setDetails(allDetails); // detailsに詳細データをセット
-        setIsLoading(false); // ローディング終了
-      } catch (error) {
-        console.error('データ取得エラー:', error);
-        setIsLoading(false); // エラー時もローディング終了
+    const detailData = await Promise.all(
+      allData.map(async (data: { url: string }) => {
+        const res2 = await axios.get(data.url);
+        return res2.data;  // 取得したデータを集約してPromise.allが返す
+      })
+    );
+    setGetDetailData(detailData)
+      } catch {
+        console.error("失敗しました")
       }
-    };
+    }
+    allPokemonData();
+  }, [])
 
-    getData();
-  }, []);
+  const clickNext = async () => {
+    try {
+      if (getNext) { // getNext がnullでないことを確認
+        const res = await axios.get(getNext); // getNext の URL にリクエスト
+        const nextData = res.data; // レスポンスデータ全体を取得
+
+        const detailData = await Promise.all(
+          nextData.results.map(async (data: { url: string }) => {
+            const res2 = await axios.get(data.url);
+            return res2.data; // 取得したデータを返す
+          })
+        );
+
+        setGetDetailData(detailData); // 取得した詳細データを状態に保存
+        setGetNext(nextData.next); // 次のページのURLをセット
+        setGetPrev(nextData.previous); // 前のページのURLをセット
+      }
+    } catch (error) {
+      console.error("次のページのデータ取得に失敗しました", error);
+    }
+  };
+
+  const clickPrev = () => {
+
+  }
 
   return (
     <>
-      {isLoading? 
-      <p>ロード中…</p>:
-
       <ul>
-        {details.map((data) => (
-          <li key={data.name}>
-            <img src={data.sprites.front_default} alt="画像"></img>
-            <p>{data.name}</p>
-            <p>{data.types.map((typeObj) => typeObj.type.name).join(', ')}</p>
-          </li>
-        ))}
-      </ul>}
+        {getDetailData.map((data) => {
+          return(
+            <li key={data.name}>
+              <img src={data.sprites.front_default} alt="画像"></img>
+              <p>{data.name}</p>
+              <p>{data.types.map((object) => object.type.name).join(',')}</p>
+            </li>
+          )
+        })}
+      </ul>
+      <button type="button" onClick={clickNext}>次へ</button>
+      <button type="button" onClick={clickPrev}>前へ</button>
     </>
   )
 }
