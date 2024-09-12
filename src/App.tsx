@@ -17,7 +17,7 @@ interface PokeData {
 function App() {
   const [, setGetAllData] = useState([]);
   const [getNext, setGetNext] = useState<string | null>(null); // 初期値をnullに設定
-  const [, setGetPrev] = useState<string | null>(null); // 初期値をnullに設定
+  const [getPrev, setGetPrev] = useState<string | null>(null); // 初期値をnullに設定
   const [getDetailData, setGetDetailData] = useState<PokeData[]>([]);
  
   useEffect(() => {
@@ -65,8 +65,23 @@ function App() {
     }
   };
 
-  const clickPrev = () => {
+  const clickPrev = async () => {
+    if(!getPrev) return;
+    const prevData = await axios.get(getPrev);
 
+    // console.log(prevData.data.results)
+
+    const detailURL = prevData.data.results;
+    const eachDetailData = await Promise.all (
+      detailURL.map(async (data: {url: string}) => {
+      const res2 = await axios.get(data.url)
+      return res2.data
+     })
+
+    )
+    setGetDetailData(eachDetailData)
+    setGetNext(prevData.data.next);
+    setGetPrev(prevData.data.previous)
   }
 
   return (
